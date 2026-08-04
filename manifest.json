@@ -2,7 +2,7 @@
   "name": "Editor de Base de Datos - Manager de Fútbol",
   "short_name": "DB Fútbol",
   "description": "Editor de ligas, equipos y jugadores para tu manager de fútbol.",
-  "start_url": "./DATABASE.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0B1712",

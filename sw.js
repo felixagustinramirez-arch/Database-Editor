@@ -1,6 +1,6 @@
-const CACHE_NAME = "db-futbol-v1";
+const CACHE_NAME = "db-futbol-v2";
 const APP_SHELL = [
-  "./DATABASE.html",
+  "./index.html",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
