@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Editor de Base de Datos - Manager de Fútbol</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0B1712" />
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DB Fútbol" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="format-detection" content="telephone=no" />
+
+<!-- Splash screens iOS (evitan el flash blanco al abrir la app instalada) -->
+<link rel="apple-touch-startup-image" href="splash/apple-splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+<link rel="apple-touch-startup-image" href="splash/apple-splash-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #0B1712; height: 100%; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #1B3A2B; border-radius: 4px; }
+  input:focus, select:focus, button:focus, textarea:focus { outline: 2px solid #D4A73C; outline-offset: 1px; }
+
+  /* iOS: evita que Safari haga zoom automático al enfocar inputs con fuente < 16px */
+  @media (max-width: 640px) {
+    input, select, textarea { font-size: 16px !important; }
+  }
+
+  /* iOS PWA instalada: respeta el notch / la isla dinámica / el home indicator */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Evita el rebote/scroll elástico de todo el documento en iOS, dejando el scroll interno normal */
+  html { overscroll-behavior: none; height: 100%; }
+  body { overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ---------- ICONS ----------
+function Icon({ children, size = 16, color, className, style }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round"
+      strokeLinejoin="round" className={className} style={style}>
+      {children}
+    </svg>
+  );
+}
+const IPlus = (p) => <Icon {...p}><path d="M5 12h14" /><path d="M12 5v14" /></Icon>;
+const IX = (p) => <Icon {...p}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>;
+const ITrash = (p) => <Icon {...p}><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
+const IPencil = (p) => <Icon {...p}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></Icon>;
+const ICopy = (p) => <Icon {...p}><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></Icon>;
+const ISearch = (p) => <Icon {...p}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Icon>;
+const IDownload = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></Icon>;
+const IUpload = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></Icon>;
+const IChevronRight = (p) => <Icon {...p}><path d="m9 18 6-6-6-6" /></Icon>;
+const IChevronDown = (p) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
+const IShuffle = (p) => <Icon {...p}><path d="m18 14 4 4-4 4" /><path d="m18 2 4 4-4 4" /><path d="M2 18h1.4c1.6 0 3.1-.8 4-2.2l.4-.6" /><path d="M2 6h1.4c1.6 0 3.1.8 4 2.2l5.2 7.6c.9 1.4 2.4 2.2 4 2.2H22" /><path d="M22 6h-5.4c-1.6 0-3.1.8-4 2.2l-.4.6" /></Icon>;
+const ITrophy = (p) => <Icon {...p}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.7V17c0 .5-.5 1-1 1.2-1.2.5-2 2-2 3.8" /><path d="M14 14.7V17c0 .5.5 1 1 1.2 1.2.5 2 2 2 3.8" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></Icon>;
+const IShirt = (p) => <Icon {...p}><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23Z" /></Icon>;
+const IWallet = (p) => <Icon {...p}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></Icon>;
+const IUsers = (p) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
+const IGlobe = (p) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z" /></Icon>;
+
+// ---------- TOKENS ----------
+const C = {
+  bg: "#0B1712", panel: "#132A20", panelLight: "#1B3A2B", panelHover: "#20402F",
+  gold: "#D4A73C", goldSoft: "#E8CE86", red: "#B23A3A", ink: "#14231C",
+  chalk: "#ECEADF", chalkDim: "#A9B8AC", border: "#22402F",
+};
+function tierColor(v) {
+  if (v >= 90) return { bg: "#3E8FBF", fg: "#0A1A12" };
+  if (v >= 80) return { bg: "#4C9A4C", fg: "#0A1A12" };
+  if (v >= 70) return { bg: "#D97F2E", fg: "#1A1006" };
+  return { bg: "#C23B3B", fg: "#F5EDE6" };
+}
+const FONTS_URL = "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
+const F_DISPLAY = "'Bebas Neue', sans-serif";
+const F_BODY = "'IBM Plex Sans', sans-serif";
+const F_MONO = "'IBM Plex Mono', monospace";
+
+// ---------- FOOTBALL DATA (mismo vocabulario que el juego) ----------
+const POSITIONS_DETAILED = [
+  { code: "EXI", label: "Extremo Izquierdo", group: "DEL" },
+  { code: "SD", label: "Segundo Delantero", group: "DEL" },
+  { code: "DC", label: "Delantero Centro", group: "DEL" },
+  { code: "EXD", label: "Extremo Derecho", group: "DEL" },
+  { code: "II", label: "Interior Izquierdo", group: "MED" },
+  { code: "MCD", label: "Mediocentro Defensivo", group: "MED" },
+  { code: "MC", label: "Mediocentro", group: "MED" },
+  { code: "MP", label: "Mediapunta", group: "MED" },
+  { code: "ID", label: "Interior Derecho", group: "MED" },
+  { code: "LI", label: "Lateral Izquierdo", group: "DEF" },
+  { code: "DEC", label: "Defensa Central", group: "DEF" },
+  { code: "LD", label: "Lateral Derecho", group: "DEF" },
+  { code: "PT", label: "Portero", group: "POR" },
+];
+const GROUP_LABEL = { POR: "Porteros", DEF: "Defensas", MED: "Mediocampistas", DEL: "Delanteros" };
+const CODE_TO_GROUP = Object.fromEntries(POSITIONS_DETAILED.map((p) => [p.code, p.group]));
+const CODE_TO_LABEL = Object.fromEntries(POSITIONS_DETAILED.map((p) => [p.code, p.label]));
+const positionsInGroup = (group) => POSITIONS_DETAILED.filter((p) => p.group === group).map((p) => p.code);
+
+const PLAYSTYLES = {
+  DEL: ["Cazagoles", "Hombre Objetivo", "Señuelo", "Segundo Delantero", "Delantero Presionante"],
+  MED: ["Ala Prolífico", "Extremo Infiltrado", "Especialista en Centros", "Jugador de Huecos", "Organizador", "Clásico Nº 10", "Omnipresente", "Destructor", "Medio Escudo"],
+  DEF: ["Lateral Ofensivo", "Lateral Defensivo", "Atacante Extra", "Creación"],
+  POR: ["Portero Ofensivo", "Portero Defensivo"],
+};
+const ABILITIES_GENERAL = ["Supercampeón", "Espíritu luchador", "Líder"];
+const ABILITIES_BY_POS = {
+  DEL: ["Remate de primera", "Finalización acrobática", "Tiro con empeine", "Disparo lejano con rosca", "Tacón del diablo", "Amago por detrás y giro", "Sombrero", "Elasticidad", "Tijera", "Pase de rabona", ...ABILITIES_GENERAL],
+  MED: ["Pase al primer toque", "Pase al hueco", "Pase cruzado", "Ruleta", "As del rastreo", "Tiro con empeine", "Disparo lejano con rosca", "Tacón del diablo", "Tijera", ...ABILITIES_GENERAL],
+  DEF: ["Marcar de cerca", "Interceptador", "Pase de profundidad largo", "Pase cruzado", ...ABILITIES_GENERAL],
+  POR: ["Saque largo de portero", "Saque de meta tenso", "Saque alto de portero", "Parapenaltis", ...ABILITIES_GENERAL],
+};
+const AI_STYLES_BY_POS = {
+  DEL: ["Truquero", "Llegador", "Misil de largo alcance", "Incisivo", "Centro temprano"],
+  MED: ["Truquero", "Llegador", "Misil de largo alcance", "Balón parado"],
+  DEF: ["Incisivo", "Centro temprano"],
+  POR: ["Misil de largo alcance", "Balón parado"],
+};
+const ALL_ABILITIES = [...new Set(Object.values(ABILITIES_BY_POS).flat())];
+const ALL_AI_STYLES = [...new Set(Object.values(AI_STYLES_BY_POS).flat())];
+const CHAR_OPTIONS = {
+  "Uso pierna mala": ["Raramente", "A veces", "Frecuentemente"],
+  "Prec. pierna mala": ["Muy bajo", "Algo bajo", "Medio", "Alto", "Muy alto"],
+  "Regularidad": ["Irregular", "Variable", "Constante", "Muy constante"],
+  "Resist. a lesiones": ["Bajo", "Medio", "Alto"],
+};
+const HEIGHT_RANGE = { POR: [185, 199], DEF: [176, 193], MED: [168, 186], DEL: [168, 189] };
+const FIRST_NAMES = ["Mateo", "Santiago", "Diego", "Leonardo", "Gabriel", "Fernando", "Rodrigo", "Miguel", "Alejandro", "Joaquín", "Emilio", "Javier", "Sebastián", "Rafael", "Héctor", "Martín", "Nicolás", "Bruno", "Thiago", "Lucas", "Adrián", "Pablo", "Iker", "César", "Tomás", "Facundo", "Agustín", "Franco", "Ezequiel", "Ignacio"];
+const LAST_NAMES = ["Hernández", "García", "Martínez", "López", "González", "Pérez", "Rodríguez", "Sánchez", "Ramírez", "Torres", "Flores", "Gómez", "Morales", "Díaz", "Silva", "Rojas", "Vargas", "Núñez", "Herrera", "Castro", "Molina", "Aguirre", "Bravo", "Ibáñez", "Cabrera", "Salinas", "Ponce", "Escobar", "Domínguez", "Cordero"];
+
+// Todos los países del mundo (soberanos + microestados + islas + territorios con selección propia)
+const COUNTRIES = ["Afganistán","Albania","Alemania","Andorra","Angola","Anguila","Antigua y Barbuda","Arabia Saudita","Argelia","Argentina","Armenia","Aruba","Australia","Austria","Azerbaiyán","Bahamas","Bangladés","Barbados","Baréin","Belice","Benín","Bermudas","Bielorrusia","Bolivia","Bosnia y Herzegovina","Botsuana","Brasil","Brunéi","Bulgaria","Burkina Faso","Burundi","Bután","Bélgica","Cabo Verde","Camboya","Camerún","Canadá","Catar","Chad","Chile","China","Chipre","Ciudad del Vaticano","Colombia","Comoras","Corea del Norte","Corea del Sur","Costa Rica","Costa de Marfil","Croacia","Cuba","Curazao","Dinamarca","Dominica","Ecuador","Egipto","El Salvador","Emiratos Árabes Unidos","Eritrea","Escocia","Eslovaquia","Eslovenia","España","Estados Unidos","Estonia","Esuatini","Etiopía","Filipinas","Finlandia","Fiyi","Francia","Gabón","Gales","Gambia","Georgia","Ghana","Gibraltar","Granada","Grecia","Groenlandia","Guadalupe","Guam","Guatemala","Guayana Francesa","Guinea","Guinea Ecuatorial","Guinea-Bisáu","Guyana","Haití","Honduras","Hong Kong","Hungría","India","Indonesia","Inglaterra","Irak","Irlanda","Irlanda del Norte","Irán","Islandia","Islas Caimán","Islas Cook","Islas Feroe","Islas Malvinas","Islas Marshall","Islas Salomón","Islas Vírgenes Británicas","Islas Vírgenes de EE. UU.","Israel","Italia","Jamaica","Japón","Jordania","Kazajistán","Kenia","Kirguistán","Kiribati","Kosovo","Kuwait","Laos","Lesoto","Letonia","Liberia","Libia","Liechtenstein","Lituania","Luxemburgo","Líbano","Macao","Macedonia del Norte","Madagascar","Malasia","Malaui","Maldivas","Malta","Malí","Marruecos","Martinica","Mauricio","Mauritania","Micronesia","Moldavia","Mongolia","Montenegro","Montserrat","Mozambique","Myanmar","México","Mónaco","Namibia","Nauru","Nepal","Nicaragua","Nigeria","Niue","Noruega","Nueva Caledonia","Nueva Zelanda","Níger","Omán","Pakistán","Palaos","Palestina","Panamá","Papúa Nueva Guinea","Paraguay","Países Bajos","Perú","Polinesia Francesa","Polonia","Portugal","Puerto Rico","República Centroafricana","República Checa","República Democrática del Congo","República Dominicana","República del Congo","Ruanda","Rumania","Rusia","Samoa","Samoa Americana","San Cristóbal y Nieves","San Marino","San Martín","San Vicente y las Granadinas","Santa Elena","Santa Lucía","Santo Tomé y Príncipe","Senegal","Serbia","Seychelles","Sierra Leona","Singapur","Sint Maarten","Siria","Somalia","Sri Lanka","Sudáfrica","Sudán","Sudán del Sur","Suecia","Suiza","Surinam","Tailandia","Taiwán","Tanzania","Tayikistán","Timor Oriental","Togo","Tokelau","Tonga","Trinidad y Tobago","Turcas y Caicos","Turkmenistán","Turquía","Tuvalu","Túnez","Ucrania","Uganda","Uruguay","Uzbekistán","Vanuatu","Venezuela","Vietnam","Yemen","Yibuti","Zambia","Zimbabue"];
+
+const SQUAD_SHAPE = { POR: 0.14, DEF: 0.33, MED: 0.29, DEL: 0.24 };
+
+// Categorías de estadísticas y su desglose (idéntico al glosario del juego)
+const CATEGORY_DEFS = {
+  Ataque: ["Actitud ofensiva", "Finalización", "Potencia de tiro"],
+  Regate: ["Control de balón", "Regate", "Conservación del balón", "Equilibrio"],
+  Defensa: ["Cabeceo", "Salto", "Actitud defensiva", "Entrada", "Compromiso defensivo", "Agresividad"],
+  Pases: ["Pase raso", "Pase bombeado", "Balón parado", "Efecto"],
+  "Complexión": ["Velocidad", "Aceleración", "Contacto físico", "Resistencia"],
+  Portero: ["Actitud de portero", "Atajar (PT)", "Desviar (PT)", "Reflejos (PT)", "Cobertura (PT)"],
+};
+// Ponderación EXACTA por sub-estadística individual, por subposición.
+// Fuente: Ponderaciones_OVR_PES_v3.xlsx (matriz normalizada al 100.0% por posición).
+const SUBSTAT_WEIGHTS = {
+  PT: { // Excel: PT
+    "Ataque": { "Actitud ofensiva": 0.001907, "Finalización": 0.001907, "Potencia de tiro": 0.00572 },
+    "Pases": { "Pase raso": 0.004766, "Pase bombeado": 0.004766, "Balón parado": 0.001907, "Efecto": 0.001907 },
+    "Regate": { "Control de balón": 0.003813, "Regate": 0.00286, "Conservación del balón": 0.00286, "Equilibrio": 0.00286 },
+    "Complexión": { "Velocidad": 0.003813, "Aceleración": 0.003813, "Contacto físico": 0.014299, "Resistencia": 0.003813 },
+    "Defensa": { "Cabeceo": 0.00286, "Salto": 0.019066, "Actitud defensiva": 0.00286, "Entrada": 0.00286, "Compromiso defensivo": 0.00286, "Agresividad": 0.00286 },
+    "Portero": { "Actitud de portero": 0.200191, "Atajar (PT)": 0.200191, "Desviar (PT)": 0.162059, "Reflejos (PT)": 0.200191, "Cobertura (PT)": 0.142993 }
+  },
+  DEC: { // Excel: DEC
+    "Ataque": { "Actitud ofensiva": 0.008188, "Finalización": 0.004094, "Potencia de tiro": 0.018424 },
+    "Pases": { "Pase raso": 0.033777, "Pase bombeado": 0.018424, "Balón parado": 0.008188, "Efecto": 0.004094 },
+    "Regate": { "Control de balón": 0.018424, "Regate": 0.008188, "Conservación del balón": 0.013306, "Equilibrio": 0.008188 },
+    "Complexión": { "Velocidad": 0.04913, "Aceleración": 0.023541, "Contacto físico": 0.114637, "Resistencia": 0.04913 },
+    "Defensa": { "Cabeceo": 0.079836, "Salto": 0.079836, "Actitud defensiva": 0.171955, "Entrada": 0.131013, "Compromiso defensivo": 0.094166, "Agresividad": 0.058342 },
+    "Portero": { "Actitud de portero": 0.001024, "Atajar (PT)": 0.001024, "Desviar (PT)": 0.001024, "Reflejos (PT)": 0.001024, "Cobertura (PT)": 0.001024 }
+  },
+  LI: { // Excel: LI/LD
+    "Ataque": { "Actitud ofensiva": 0.023517, "Finalización": 0.00818, "Potencia de tiro": 0.023517 },
+    "Pases": { "Pase raso": 0.059305, "Pase bombeado": 0.079755, "Balón parado": 0.018405, "Efecto": 0.02863 },
+    "Regate": { "Control de balón": 0.04908, "Regate": 0.04908, "Conservación del balón": 0.02863, "Equilibrio": 0.02863 },
+    "Complexión": { "Velocidad": 0.104294, "Aceleración": 0.083845, "Contacto físico": 0.023517, "Resistencia": 0.08998 },
+    "Defensa": { "Cabeceo": 0.018405, "Salto": 0.018405, "Actitud defensiva": 0.083845, "Entrada": 0.079755, "Compromiso defensivo": 0.063395, "Agresividad": 0.03272 },
+    "Portero": { "Actitud de portero": 0.001022, "Atajar (PT)": 0.001022, "Desviar (PT)": 0.001022, "Reflejos (PT)": 0.001022, "Cobertura (PT)": 0.001022 }
+  },
+  LD: { // Excel: LI/LD
+    "Ataque": { "Actitud ofensiva": 0.023517, "Finalización": 0.00818, "Potencia de tiro": 0.023517 },
+    "Pases": { "Pase raso": 0.059305, "Pase bombeado": 0.079755, "Balón parado": 0.018405, "Efecto": 0.02863 },
+    "Regate": { "Control de balón": 0.04908, "Regate": 0.04908, "Conservación del balón": 0.02863, "Equilibrio": 0.02863 },
+    "Complexión": { "Velocidad": 0.104294, "Aceleración": 0.083845, "Contacto físico": 0.023517, "Resistencia": 0.08998 },
+    "Defensa": { "Cabeceo": 0.018405, "Salto": 0.018405, "Actitud defensiva": 0.083845, "Entrada": 0.079755, "Compromiso defensivo": 0.063395, "Agresividad": 0.03272 },
+    "Portero": { "Actitud de portero": 0.001022, "Atajar (PT)": 0.001022, "Desviar (PT)": 0.001022, "Reflejos (PT)": 0.001022, "Cobertura (PT)": 0.001022 }
+  },
+  MCD: { // Excel: MCD
+    "Ataque": { "Actitud ofensiva": 0.024059, "Finalización": 0.018828, "Potencia de tiro": 0.029289 },
+    "Pases": { "Pase raso": 0.112971, "Pase bombeado": 0.07113, "Balón parado": 0.008368, "Efecto": 0.008368 },
+    "Regate": { "Control de balón": 0.060669, "Regate": 0.029289, "Conservación del balón": 0.039749, "Equilibrio": 0.024059 },
+    "Complexión": { "Velocidad": 0.039749, "Aceleración": 0.029289, "Contacto físico": 0.060669, "Resistencia": 0.039749 },
+    "Defensa": { "Cabeceo": 0.034519, "Salto": 0.029289, "Actitud defensiva": 0.123431, "Entrada": 0.112971, "Compromiso defensivo": 0.064854, "Agresividad": 0.033473 },
+    "Portero": { "Actitud de portero": 0.001046, "Atajar (PT)": 0.001046, "Desviar (PT)": 0.001046, "Reflejos (PT)": 0.001046, "Cobertura (PT)": 0.001046 }
+  },
+  MC: { // Excel: CC
+    "Ataque": { "Actitud ofensiva": 0.041461, "Finalización": 0.031589, "Potencia de tiro": 0.037512 },
+    "Pases": { "Pase raso": 0.150049, "Pase bombeado": 0.100691, "Balón parado": 0.017769, "Efecto": 0.017769 },
+    "Regate": { "Control de balón": 0.096742, "Regate": 0.057256, "Conservación del balón": 0.057256, "Equilibrio": 0.031589 },
+    "Complexión": { "Velocidad": 0.047384, "Aceleración": 0.041461, "Contacto físico": 0.037512, "Resistencia": 0.067127 },
+    "Defensa": { "Cabeceo": 0.017769, "Salto": 0.007897, "Actitud defensiva": 0.051333, "Entrada": 0.041461, "Compromiso defensivo": 0.031589, "Agresividad": 0.011846 },
+    "Portero": { "Actitud de portero": 0.000987, "Atajar (PT)": 0.000987, "Desviar (PT)": 0.000987, "Reflejos (PT)": 0.000987, "Cobertura (PT)": 0.000987 }
+  },
+  MP: { // Excel: MO
+    "Ataque": { "Actitud ofensiva": 0.076471, "Finalización": 0.066667, "Potencia de tiro": 0.037255 },
+    "Pases": { "Pase raso": 0.139216, "Pase bombeado": 0.090196, "Balón parado": 0.027451, "Efecto": 0.027451 },
+    "Regate": { "Control de balón": 0.12549, "Regate": 0.086275, "Conservación del balón": 0.076471, "Equilibrio": 0.041176 },
+    "Complexión": { "Velocidad": 0.047059, "Aceleración": 0.066667, "Contacto físico": 0.017647, "Resistencia": 0.027451 },
+    "Defensa": { "Cabeceo": 0.007843, "Salto": 0.007843, "Actitud defensiva": 0.007843, "Entrada": 0.007843, "Compromiso defensivo": 0.007843, "Agresividad": 0.002941 },
+    "Portero": { "Actitud de portero": 0.00098, "Atajar (PT)": 0.00098, "Desviar (PT)": 0.00098, "Reflejos (PT)": 0.00098, "Cobertura (PT)": 0.00098 }
+  },
+  II: { // Excel: II/ID
+    "Ataque": { "Actitud ofensiva": 0.055931, "Finalización": 0.055931, "Potencia de tiro": 0.036644 },
+    "Pases": { "Pase raso": 0.08486, "Pase bombeado": 0.094503, "Balón parado": 0.027001, "Efecto": 0.046287 },
+    "Regate": { "Control de balón": 0.104147, "Regate": 0.11379, "Conservación del balón": 0.065574, "Equilibrio": 0.050145 },
+    "Complexión": { "Velocidad": 0.094503, "Aceleración": 0.08486, "Contacto físico": 0.007715, "Resistencia": 0.036644 },
+    "Defensa": { "Cabeceo": 0.007715, "Salto": 0.007715, "Actitud defensiva": 0.007715, "Entrada": 0.007715, "Compromiso defensivo": 0.002893, "Agresividad": 0.002893 },
+    "Portero": { "Actitud de portero": 0.000964, "Atajar (PT)": 0.000964, "Desviar (PT)": 0.000964, "Reflejos (PT)": 0.000964, "Cobertura (PT)": 0.000964 }
+  },
+  ID: { // Excel: II/ID
+    "Ataque": { "Actitud ofensiva": 0.055931, "Finalización": 0.055931, "Potencia de tiro": 0.036644 },
+    "Pases": { "Pase raso": 0.08486, "Pase bombeado": 0.094503, "Balón parado": 0.027001, "Efecto": 0.046287 },
+    "Regate": { "Control de balón": 0.104147, "Regate": 0.11379, "Conservación del balón": 0.065574, "Equilibrio": 0.050145 },
+    "Complexión": { "Velocidad": 0.094503, "Aceleración": 0.08486, "Contacto físico": 0.007715, "Resistencia": 0.036644 },
+    "Defensa": { "Cabeceo": 0.007715, "Salto": 0.007715, "Actitud defensiva": 0.007715, "Entrada": 0.007715, "Compromiso defensivo": 0.002893, "Agresividad": 0.002893 },
+    "Portero": { "Actitud de portero": 0.000964, "Atajar (PT)": 0.000964, "Desviar (PT)": 0.000964, "Reflejos (PT)": 0.000964, "Cobertura (PT)": 0.000964 }
+  },
+  SD: { // Excel: SD
+    "Ataque": { "Actitud ofensiva": 0.109645, "Finalización": 0.119797, "Potencia de tiro": 0.038579 },
+    "Pases": { "Pase raso": 0.069036, "Pase bombeado": 0.032487, "Balón parado": 0.018274, "Efecto": 0.028426 },
+    "Regate": { "Control de balón": 0.119797, "Regate": 0.099492, "Conservación del balón": 0.069036, "Equilibrio": 0.04264 },
+    "Complexión": { "Velocidad": 0.069036, "Aceleración": 0.08934, "Contacto físico": 0.028426, "Resistencia": 0.022335 },
+    "Defensa": { "Cabeceo": 0.018274, "Salto": 0.008122, "Actitud defensiva": 0.003046, "Entrada": 0.003046, "Compromiso defensivo": 0.003046, "Agresividad": 0.003046 },
+    "Portero": { "Actitud de portero": 0.001015, "Atajar (PT)": 0.001015, "Desviar (PT)": 0.001015, "Reflejos (PT)": 0.001015, "Cobertura (PT)": 0.001015 }
+  },
+  EXI: { // Excel: EX
+    "Ataque": { "Actitud ofensiva": 0.094503, "Finalización": 0.08486, "Potencia de tiro": 0.036644 },
+    "Pases": { "Pase raso": 0.046287, "Pase bombeado": 0.065574, "Balón parado": 0.017358, "Efecto": 0.046287 },
+    "Regate": { "Control de balón": 0.104147, "Regate": 0.133076, "Conservación del balón": 0.055931, "Equilibrio": 0.050145 },
+    "Complexión": { "Velocidad": 0.104147, "Aceleración": 0.104147, "Contacto físico": 0.007715, "Resistencia": 0.017358 },
+    "Defensa": { "Cabeceo": 0.007715, "Salto": 0.007715, "Actitud defensiva": 0.002893, "Entrada": 0.002893, "Compromiso defensivo": 0.002893, "Agresividad": 0.002893 },
+    "Portero": { "Actitud de portero": 0.000964, "Atajar (PT)": 0.000964, "Desviar (PT)": 0.000964, "Reflejos (PT)": 0.000964, "Cobertura (PT)": 0.000964 }
+  },
+  EXD: { // Excel: EX
+    "Ataque": { "Actitud ofensiva": 0.094503, "Finalización": 0.08486, "Potencia de tiro": 0.036644 },
+    "Pases": { "Pase raso": 0.046287, "Pase bombeado": 0.065574, "Balón parado": 0.017358, "Efecto": 0.046287 },
+    "Regate": { "Control de balón": 0.104147, "Regate": 0.133076, "Conservación del balón": 0.055931, "Equilibrio": 0.050145 },
+    "Complexión": { "Velocidad": 0.104147, "Aceleración": 0.104147, "Contacto físico": 0.007715, "Resistencia": 0.017358 },
+    "Defensa": { "Cabeceo": 0.007715, "Salto": 0.007715, "Actitud defensiva": 0.002893, "Entrada": 0.002893, "Compromiso defensivo": 0.002893, "Agresividad": 0.002893 },
+    "Portero": { "Actitud de portero": 0.000964, "Atajar (PT)": 0.000964, "Desviar (PT)": 0.000964, "Reflejos (PT)": 0.000964, "Cobertura (PT)": 0.000964 }
+  },
+  DC: { // Excel: DC
+    "Ataque": { "Actitud ofensiva": 0.166843, "Finalización": 0.187962, "Potencia de tiro": 0.050686 },
+    "Pases": { "Pase raso": 0.033791, "Pase bombeado": 0.008448, "Balón parado": 0.008448, "Efecto": 0.008448 },
+    "Regate": { "Control de balón": 0.092925, "Regate": 0.050686, "Conservación del balón": 0.040127, "Equilibrio": 0.029567 },
+    "Complexión": { "Velocidad": 0.050686, "Aceleración": 0.050686, "Contacto físico": 0.082365, "Resistencia": 0.019007 },
+    "Defensa": { "Cabeceo": 0.071806, "Salto": 0.029567, "Actitud defensiva": 0.003168, "Entrada": 0.003168, "Compromiso defensivo": 0.003168, "Agresividad": 0.003168 },
+    "Portero": { "Actitud de portero": 0.001056, "Atajar (PT)": 0.001056, "Desviar (PT)": 0.001056, "Reflejos (PT)": 0.001056, "Cobertura (PT)": 0.001056 }
+  },
+};
+
+// Peso agregado de una categoría para una subposición (suma de sus sub-estadísticas) — solo para mostrar en el badge.
+function categoryWeightFor(position, group, catName) {
+  const w = SUBSTAT_WEIGHTS[position] || SUBSTAT_WEIGHTS[positionsInGroup(group)[0]] || SUBSTAT_WEIGHTS.MC;
+  const subs = w[catName] || {};
+  return Object.values(subs).reduce((s, v) => s + v, 0);
+}
+
+// ---------- HELPERS ----------
+let UID_COUNTER = 1;
+const uid = () => `${Date.now().toString(36)}${(UID_COUNTER++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const pick = (arr) => arr[rand(0, arr.length - 1)];
+const pickN = (arr, n) => [...arr].sort(() => Math.random() - 0.5).slice(0, Math.min(n, arr.length));
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+function formatMoney(n) {
+  n = Number(n) || 0;
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M€`;
+  return `${Math.round(n / 1000)}K€`;
+}
+function suggestValue(rating, age) {
+  const ageFactor = age <= 21 ? 1.45 : age <= 23 ? 1.3 : age <= 27 ? 1.1 : age <= 30 ? 0.85 : age <= 33 ? 0.55 : age <= 36 ? 0.3 : 0.15;
+  const d = Math.max(0, rating - 40);
+  const value = Math.round((0.00512 * Math.pow(d, 6) * ageFactor) / 1000) * 1000;
+  return Math.max(20000, value);
+}
+const suggestWeight = (height) => Math.round(height * 0.44 + rand(-4, 4));
+function suggestSalary(rating, age) {
+  const ageFactor = age <= 20 ? 0.8 : age <= 23 ? 0.95 : age <= 29 ? 1.15 : age <= 32 ? 1 : age <= 35 ? 0.75 : 0.5;
+  const d = Math.max(0, rating - 40);
+  const salary = Math.round((0.000768 * Math.pow(d, 6) * ageFactor) / 100) * 100;
+  return Math.max(15000, salary);
+}
+
+// Estadísticas -> valoración
+function categoryOverall(categories, catName) {
+  const subs = categories[catName] || {};
+  const vals = Object.values(subs);
+  if (!vals.length) return 0;
+  return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+}
+function computeRating(player) {
+  const weights = SUBSTAT_WEIGHTS[player.position] || SUBSTAT_WEIGHTS[positionsInGroup(player.group)[0]] || SUBSTAT_WEIGHTS.MC;
+  let total = 0;
+  Object.entries(weights).forEach(([cat, subs]) => {
+    const values = (player.categories && player.categories[cat]) || {};
+    Object.entries(subs).forEach(([sub, w]) => { total += w * (values[sub] || 0); });
+  });
+  return clamp(Math.round(total), 1, 99);
+}
+function ratingAtPosition(player, code) {
+  if (!code || code === player.position) return computeRating(player);
+  return computeRating({ ...player, position: code });
+}
+function catSeedBase(name, group, rating) {
+  switch (name) {
+    case "Ataque": return group === "DEL" ? rating : group === "MED" ? rating - 10 : group === "DEF" ? rating - 25 : 33;
+    case "Regate": return group === "DEL" ? rating : group === "MED" ? rating - 3 : group === "DEF" ? rating - 15 : rating - 45;
+    case "Defensa": return group === "DEF" ? rating + 3 : group === "MED" ? rating - 15 : group === "DEL" ? rating - 25 : rating - 15;
+    case "Pases": return group === "MED" ? rating + 2 : group === "DEF" ? rating - 8 : group === "DEL" ? rating - 10 : rating - 30;
+    case "Complexión": return rating - 4;
+    case "Portero": return group === "POR" ? rating : 38;
+    default: return rating;
+  }
+}
+function seedCategories(group, targetRating) {
+  const categories = {};
+  Object.entries(CATEGORY_DEFS).forEach(([name, subs]) => {
+    const base = clamp(Math.round(catSeedBase(name, group, targetRating)), 40, 99);
+    const obj = {};
+    subs.forEach((label) => { obj[label] = clamp(base + rand(-8, 8), 40, 99); });
+    categories[name] = obj;
+  });
+  return categories;
+}
+
+function blankPlayer(group, code) {
+  group = group || "MED";
+  code = code || positionsInGroup(group)[0];
+  return {
+    id: uid(), name: "", nationalities: [], position: code, group, age: 24,
+    categories: seedCategories(group, 65),
+    potential: 70, value: suggestValue(65, 24), foot: "Derecha",
+    height: 178, weight: 74, playstyle: PLAYSTYLES[group][0], abilities: [], aiStyles: [],
+    characteristics: { "Uso pierna mala": "A veces", "Prec. pierna mala": "Medio", "Regularidad": "Constante", "Resist. a lesiones": "Medio" },
+    salary: suggestSalary(65, 24), contractYears: 3, secondaryPositions: [],
+  };
+}
+function randomPlayer(group, code) {
+  group = group || pick(["POR", "DEF", "MED", "DEL"]);
+  code = code || pick(positionsInGroup(group));
+  const age = rand(16, 38);
+  const target = clamp(rand(52, 88), 40, 99);
+  const categories = seedCategories(group, target);
+  const rating = computeRating({ position: code, group, categories });
+  const potential = clamp(rating + rand(0, 10), rating, 99);
+  const height = rand(...HEIGHT_RANGE[group]);
+  return {
+    id: uid(), name: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`, nationalities: [pick(COUNTRIES)],
+    position: code, group, age, categories, potential, value: suggestValue(rating, age),
+    foot: Math.random() < 0.78 ? "Derecha" : "Izquierda", height, weight: suggestWeight(height),
+    playstyle: pick(PLAYSTYLES[group]), abilities: pickN(ABILITIES_BY_POS[group], rand(3, 5)),
+    aiStyles: pickN(AI_STYLES_BY_POS[group], rand(2, 3)),
+    characteristics: {
+      "Uso pierna mala": pick(CHAR_OPTIONS["Uso pierna mala"]), "Prec. pierna mala": pick(CHAR_OPTIONS["Prec. pierna mala"]),
+      "Regularidad": pick(CHAR_OPTIONS["Regularidad"]), "Resist. a lesiones": pick(CHAR_OPTIONS["Resist. a lesiones"]),
+    },
+    salary: suggestSalary(rating, age), contractYears: rand(1, 5),
+    secondaryPositions: pickN(positionsInGroup(group).filter((c) => c !== code), rand(0, 2)),
+  };
+}
+function distributeCounts(n) {
+  const counts = {};
+  let sum = 0;
+  Object.entries(SQUAD_SHAPE).forEach(([g, r]) => {
+    counts[g] = g === "POR" ? Math.max(1, Math.round(n * r)) : Math.max(0, Math.round(n * r));
+    sum += counts[g];
+  });
+  counts.MED = Math.max(0, counts.MED + (n - sum));
+  return counts;
+}
+function randomSquad(n) {
+  const counts = distributeCounts(n);
+  const players = [];
+  Object.entries(counts).forEach(([group, count]) => {
+    const codes = positionsInGroup(group);
+    for (let i = 0; i < count; i++) players.push(randomPlayer(group, codes[i % codes.length]));
+  });
+  return players;
+}
+function blankTeam(name) {
+  return { id: uid(), name: name || "Nuevo equipo", transferBudget: 5000000, salaryBudget: 2000000, players: [] };
+}
+function blankLeague(name) {
+  return { id: uid(), name: name || "Nueva liga", teams: [] };
+}
+
+// ---------- STORAGE ----------
+const STORAGE_KEY = "db-editor:leagues";
+// Convierte datos guardados con versiones anteriores del editor al formato actual
+function normalizePlayer(p) {
+  const group = p.group || CODE_TO_GROUP[p.position] || "MED";
+  let nationalities = p.nationalities;
+  if (!Array.isArray(nationalities)) nationalities = p.nationality ? [p.nationality] : [];
+  let categories = p.categories;
+  if (!categories || !Object.keys(categories).length) categories = seedCategories(group, p.rating || 65);
+  const position = p.position || positionsInGroup(group)[0];
+  const age = p.age ?? 24;
+  const rating = computeRating({ position, group, categories });
+  return {
+    id: p.id || uid(), name: p.name || "", nationalities, position, group,
+    age, categories, potential: p.potential ?? 70, value: p.value ?? 0,
+    foot: p.foot || "Derecha", height: p.height || 178, weight: p.weight || 74,
+    playstyle: p.playstyle || PLAYSTYLES[group][0], abilities: p.abilities || [], aiStyles: p.aiStyles || [],
+    characteristics: p.characteristics || { "Uso pierna mala": "A veces", "Prec. pierna mala": "Medio", "Regularidad": "Constante", "Resist. a lesiones": "Medio" },
+    salary: p.salary ?? suggestSalary(rating, age), contractYears: p.contractYears ?? 3,
+    secondaryPositions: Array.isArray(p.secondaryPositions) ? p.secondaryPositions.filter((c) => c !== position && CODE_TO_GROUP[c]) : [],
+  };
+}
+function normalizeTeam(t) {
+  return {
+    ...t,
+    transferBudget: t.transferBudget ?? t.budget ?? 5000000,
+    salaryBudget: t.salaryBudget ?? 2000000,
+    players: (t.players || []).map(normalizePlayer),
+  };
+}
+function normalizeDB(leagues) {
+  return (leagues || []).map((l) => ({ ...l, teams: (l.teams || []).map(normalizeTeam) }));
+}
+async function loadDB() {
+  try {
+    if (window.storage) {
+      const res = await window.storage.get(STORAGE_KEY, false);
+      if (res) return normalizeDB(JSON.parse(res.value));
+    }
+  } catch (e) { /* window.storage no disponible o falló, seguimos con localStorage */ }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return normalizeDB(JSON.parse(raw));
+  } catch (e) { return null; }
+}
+async function saveDB(leagues) {
+  const json = JSON.stringify(leagues);
+  try {
+    if (window.storage) { await window.storage.set(STORAGE_KEY, json, false); return; }
+  } catch (e) { /* seguimos con localStorage */ }
+  try { localStorage.setItem(STORAGE_KEY, json); }
+  catch (e) { console.error("No se pudo guardar", e); }
+}
+
+// ---------- UI PRIMITIVES ----------
+function Btn({ children, onClick, variant = "ghost", size = "md", icon: IconEl, type = "button", disabled, className = "" }) {
+  const styles = {
+    gold: { backgroundColor: C.gold, color: C.ink, fontWeight: 600 },
+    ghost: { backgroundColor: C.panelLight, color: C.chalk },
+    danger: { backgroundColor: "transparent", color: C.red, border: `1px solid ${C.red}` },
+    outline: { backgroundColor: "transparent", color: C.chalk, border: `1px solid ${C.border}` },
+  };
+  const pad = size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-4 py-2.5 text-sm";
+  return (
+    <button type={type} onClick={onClick} disabled={disabled}
+      className={`rounded-sm flex items-center gap-1.5 justify-center transition-colors whitespace-nowrap ${pad} ${disabled ? "opacity-40 cursor-not-allowed" : "hover:brightness-110"} ${className}`}
+      style={{ ...styles[variant], fontFamily: F_BODY }}>
+      {IconEl && <IconEl size={size === "sm" ? 13 : 15} />}
+      {children}
+    </button>
+  );
+}
+function Field({ label, children, hint }) {
+  return (
+    <label className="block mb-3">
+      <span className="block text-[11px] tracking-wide uppercase mb-1" style={{ color: C.chalkDim, fontFamily: F_MONO }}>{label}</span>
+      {children}
+      {hint && <span className="block text-[10px] mt-1" style={{ color: C.chalkDim, fontFamily: F_BODY }}>{hint}</span>}
+    </label>
+  );
+}
+const inputStyle = { backgroundColor: C.bg, color: C.chalk, border: `1px solid ${C.border}`, fontFamily: F_BODY };
+function TextInput(props) {
+  return <input {...props} className={`w-full px-3 py-2.5 rounded-sm text-sm ${props.className || ""}`} style={inputStyle} />;
+}
+function NumInput({ value, onChange, className, ...props }) {
+  const [text, setText] = useState(value === undefined || value === null ? "" : String(value));
+  useEffect(() => {
+    setText(value === undefined || value === null ? "" : String(value));
+  }, [value]);
+  const commit = () => { if (onChange) onChange({ target: { value: text } }); };
+  return (
+    <input
+      type="number"
+      {...props}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      className={`w-full px-3 py-2.5 rounded-sm text-sm ${className || ""}`}
+      style={{ ...inputStyle, fontFamily: F_MONO }}
+    />
+  );
+}
+function StatValueInput({ value, onCommit }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  const t = tierColor(value);
+  const commit = () => {
+    const n = clamp(Math.round(Number(text)) || 40, 40, 99);
+    setText(String(n));
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <input
+      type="number" min="40" max="99"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      className="w-12 text-xs text-center font-bold rounded-sm px-1 py-0.5"
+      style={{ backgroundColor: t.bg, color: t.fg, fontFamily: F_MONO, border: "none" }}
+    />
+  );
+}
+function Select(props) {
+  return <select {...props} className={`w-full px-3 py-2.5 rounded-sm text-sm ${props.className || ""}`} style={inputStyle}>{props.children}</select>;
+}
+function PositionCell({ code, rating, isPrimary, isSecondary, onClick }) {
+  const t = tierColor(rating);
+  const ring = isPrimary ? C.gold : isSecondary ? "#4C9A4C" : C.border;
+  const ringWidth = isPrimary || isSecondary ? 2 : 1;
+  return (
+    <button type="button" onClick={onClick} disabled={isPrimary}
+      className="w-14 rounded-md overflow-hidden text-center shrink-0"
+      style={{ boxShadow: `0 0 0 ${ringWidth}px ${ring}`, cursor: isPrimary ? "default" : "pointer" }}>
+      <div className="text-[11px] font-semibold py-1 truncate" style={{ backgroundColor: C.panelLight, color: isPrimary ? C.gold : isSecondary ? "#8FD98F" : C.chalk, fontFamily: F_MONO }}>{code}</div>
+      <div className="text-sm font-bold py-1" style={{ backgroundColor: t.bg, color: t.fg, fontFamily: F_MONO }}>{rating}</div>
+    </button>
+  );
+}
+function PositionMap({ player, onToggle }) {
+  const rows = [positionsInGroup("DEL"), positionsInGroup("MED"), positionsInGroup("DEF"), positionsInGroup("POR")];
+  return (
+    <div className="flex flex-col items-center gap-2 py-3 px-2 rounded-md" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
+      {rows.map((row, i) => (
+        <div key={i} className="flex gap-2 justify-center flex-wrap w-full">
+          {row.map((code) => (
+            <PositionCell key={code} code={code} rating={ratingAtPosition(player, code)}
+              isPrimary={code === player.position} isSecondary={player.secondaryPositions.includes(code)}
+              onClick={() => onToggle(code)} />
+          ))}
+        </div>
+      ))}
+      <div className="flex items-center gap-3 mt-1 flex-wrap justify-center">
+        <span className="flex items-center gap-1 text-[10px]" style={{ color: C.chalkDim, fontFamily: F_BODY }}><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ boxShadow: `0 0 0 2px ${C.gold}` }} /> Principal</span>
+        <span className="flex items-center gap-1 text-[10px]" style={{ color: C.chalkDim, fontFamily: F_BODY }}><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ boxShadow: "0 0 0 2px #4C9A4C" }} /> Alternativa</span>
+      </div>
+    </div>
+  );
+}
+function ChipToggle({ label, active, onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="px-3 py-2 rounded-full text-xs mr-2 mb-2 transition-colors"
+      style={{
+        backgroundColor: active ? C.gold : C.panelLight,
+        color: active ? C.ink : C.chalkDim,
+        fontFamily: F_BODY, fontWeight: active ? 600 : 400,
+        border: `1px solid ${active ? C.gold : C.border}`,
+      }}>
+      {label}
+    </button>
+  );
+}
+function RatingBadge({ value }) {
+  const t = tierColor(value);
+  return <span className="px-2 py-0.5 rounded-sm text-xs font-bold" style={{ backgroundColor: t.bg, color: t.fg, fontFamily: F_MONO }}>{value}</span>;
+}
+function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 overflow-y-auto"
+      style={{ backgroundColor: "rgba(5,10,7,0.75)", paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className={`w-full ${wide ? "max-w-3xl" : "max-w-md"} rounded-md my-4 sm:my-10`}
+        style={{ backgroundColor: C.panel, border: `1px solid ${C.panelLight}` }}>
+        <div className="flex items-center justify-between px-5 py-4 sticky top-0 z-10" style={{ borderBottom: `1px solid ${C.panelLight}`, backgroundColor: C.panel }}>
+          <h3 className="text-lg" style={{ fontFamily: F_DISPLAY, color: C.chalk, letterSpacing: "0.02em" }}>{title}</h3>
+          <button onClick={onClose} className="p-2 -mr-2 rounded-sm" style={{ color: C.chalkDim }}><IX size={20} /></button>
+        </div>
+        <div className="px-5 py-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+function ConfirmDialog({ open, message, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <Modal title="Confirmar" onClose={onCancel}>
+      <p className="text-sm mb-5" style={{ color: C.chalk, fontFamily: F_BODY }}>{message}</p>
+      <div className="flex justify-end gap-2">
+        <Btn variant="outline" onClick={onCancel}>Cancelar</Btn>
+        <Btn variant="danger" onClick={onConfirm}>Eliminar</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------- NATIONALITY PICKER (multi, todos los países) ----------
+function NationalityPicker({ selected, onToggle }) {
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q ? COUNTRIES.filter((c) => c.toLowerCase().includes(q)) : COUNTRIES;
+    return list.slice(0, 60);
+  }, [query]);
+  return (
+    <div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap mb-2">
+          {selected.map((c) => (
+            <span key={c} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs mr-1.5 mb-1.5"
+              style={{ backgroundColor: C.gold, color: C.ink, fontFamily: F_BODY, fontWeight: 600 }}>
+              {c}
+              <button type="button" onClick={() => onToggle(c)} className="ml-0.5"><IX size={11} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative mb-1.5">
+        <ISearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" color={C.chalkDim} />
+        <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar país (permite doble nacionalidad)..." className="pl-8" />
+      </div>
+      <div className="max-h-32 overflow-y-auto rounded-sm p-2" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+        <div className="flex flex-wrap">
+          {filtered.map((c) => (
+            <ChipToggle key={c} label={c} active={selected.includes(c)} onClick={() => onToggle(c)} />
+          ))}
+          {filtered.length === 0 && <span className="text-xs" style={{ color: C.chalkDim }}>Sin resultados</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- CATEGORY / STATS EDITOR ----------
+function CategoryEditor({ group, position, categories, onChange }) {
+  const rating = computeRating({ group, position, categories });
+  const subWeights = SUBSTAT_WEIGHTS[position] || SUBSTAT_WEIGHTS[positionsInGroup(group)[0]] || SUBSTAT_WEIGHTS.MC;
+  return (
+    <div className="mb-1">
+      <div className="flex items-center justify-between mb-3 px-3 py-2.5 rounded-sm" style={{ backgroundColor: C.panelLight }}>
+        <span className="text-xs uppercase tracking-wide" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Valoración calculada (según ponderación exacta por sub-estadística: {CODE_TO_LABEL[position]})</span>
+        <RatingBadge value={rating} />
+      </div>
+      {Object.entries(CATEGORY_DEFS).map(([catName, subs]) => {
+        const overall = categoryOverall(categories, catName);
+        const weight = categoryWeightFor(position, group, catName);
+        return (
+          <div key={catName} className="mb-2.5 rounded-sm p-3" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <RatingBadge value={overall} />
+              <span className="text-sm font-medium" style={{ color: C.chalk, fontFamily: F_BODY }}>{catName}</span>
+              <span className="text-[10px] ml-auto px-1.5 py-0.5 rounded-sm" style={{ color: weight > 0 ? C.goldSoft : C.chalkDim, fontFamily: F_MONO, backgroundColor: C.panelLight }}>peso total {(weight * 100).toFixed(1)}%</span>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5">
+              {subs.map((label) => {
+                const subW = (subWeights[catName] || {})[label] || 0;
+                return (
+                  <div key={label} className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+                    <span className="text-xs w-full sm:w-36 shrink-0 truncate" style={{ color: C.chalkDim, fontFamily: F_BODY }}>{label}</span>
+                    <input type="range" min="40" max="99" value={categories[catName][label]}
+                      onChange={(e) => onChange(catName, label, Number(e.target.value))}
+                      className="flex-1 min-w-[70px] h-6" style={{ accentColor: C.gold }} />
+                    <StatValueInput value={categories[catName][label]} onCommit={(n) => onChange(catName, label, n)} />
+                    <span className="hidden sm:inline-block text-[9px] w-11 text-right shrink-0" style={{ fontFamily: F_MONO, color: C.chalkDim }}>{(subW * 100).toFixed(2)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------- PLAYER FORM ----------
+function PlayerForm({ initial, onSave, onCancel }) {
+  const [p, setP] = useState(initial);
+  const set = (k, v) => setP((prev) => ({ ...prev, [k]: v }));
+  const setChar = (k, v) => setP((prev) => ({ ...prev, characteristics: { ...prev.characteristics, [k]: v } }));
+  const rating = computeRating(p);
+
+  const onPositionChange = (code) => {
+    const group = CODE_TO_GROUP[code];
+    setP((prev) => ({
+      ...prev, position: code, group,
+      categories: prev.group === group ? prev.categories : seedCategories(group, computeRating(prev)),
+      playstyle: PLAYSTYLES[group].includes(prev.playstyle) ? prev.playstyle : PLAYSTYLES[group][0],
+      secondaryPositions: prev.secondaryPositions.filter((c) => c !== code),
+    }));
+  };
+  const toggleSecondaryPosition = (code) => setP((prev) => {
+    if (code === prev.position) return prev;
+    if (prev.secondaryPositions.includes(code)) return { ...prev, secondaryPositions: prev.secondaryPositions.filter((c) => c !== code) };
+    if (prev.secondaryPositions.length >= 3) return prev;
+    return { ...prev, secondaryPositions: [...prev.secondaryPositions, code] };
+  });
+  const setCategoryValue = (cat, label, val) =>
+    setP((prev) => ({ ...prev, categories: { ...prev.categories, [cat]: { ...prev.categories[cat], [label]: val } } }));
+  const toggleAbility = (a) => setP((prev) => ({ ...prev, abilities: prev.abilities.includes(a) ? prev.abilities.filter((x) => x !== a) : [...prev.abilities, a] }));
+  const toggleAI = (a) => setP((prev) => ({ ...prev, aiStyles: prev.aiStyles.includes(a) ? prev.aiStyles.filter((x) => x !== a) : [...prev.aiStyles, a] }));
+  const toggleNat = (c) => setP((prev) => ({ ...prev, nationalities: prev.nationalities.includes(c) ? prev.nationalities.filter((x) => x !== c) : [...prev.nationalities, c] }));
+  const reroll = () => setP((prev) => ({ ...randomPlayer(prev.group, prev.position), id: prev.id, name: prev.name || undefined }));
+  const canSave = p.name.trim().length > 0;
+  const effectivePotential = Math.max(p.potential, rating);
+
+  return (
+    <div>
+      <div className="flex justify-end mb-3">
+        <Btn size="sm" icon={IShuffle} onClick={reroll}>Generar estadísticas aleatorias</Btn>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-x-4">
+        <Field label="Nombre"><TextInput value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Nombre y apellido" /></Field>
+        <Field label="Posición">
+          <Select value={p.position} onChange={(e) => onPositionChange(e.target.value)}>
+            {["POR", "DEF", "MED", "DEL"].map((g) => (
+              <optgroup key={g} label={GROUP_LABEL[g]}>
+                {positionsInGroup(g).map((code) => <option key={code} value={code}>{CODE_TO_LABEL[code]}</option>)}
+              </optgroup>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <Field label={`Posiciones alternativas (${p.secondaryPositions.length}/3)`} hint="El OVR de cada posición se calcula con las ponderaciones reales de esa posición sobre las mismas estadísticas del jugador (puede ser mayor o menor que en su posición principal). Tocá una posición para marcarla como alternativa; la principal se cambia arriba, en 'Posición'.">
+        <PositionMap player={p} onToggle={toggleSecondaryPosition} />
+      </Field>
+
+      <Field label={`Nacionalidad(es) — ${p.nationalities.length ? p.nationalities.join(" / ") : "ninguna seleccionada"}`}>
+        <NationalityPicker selected={p.nationalities} onToggle={toggleNat} />
+      </Field>
+
+      <div className="grid sm:grid-cols-3 gap-x-4">
+        <Field label="Edad (13-99)"><NumInput min="13" max="99" value={p.age} onChange={(e) => set("age", clamp(Number(e.target.value) || 13, 13, 99))} /></Field>
+        <Field label="Altura (cm)"><NumInput value={p.height} onChange={(e) => set("height", Number(e.target.value) || 0)} /></Field>
+        <Field label="Peso (kg)"><NumInput value={p.weight} onChange={(e) => set("weight", Number(e.target.value) || 0)} /></Field>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-x-4">
+        <Field label="Pie bueno">
+          <Select value={p.foot} onChange={(e) => set("foot", e.target.value)}>
+            <option>Derecha</option><option>Izquierda</option>
+          </Select>
+        </Field>
+        <Field label={`Potencial (mín. ${rating})`}>
+          <input type="range" min={rating} max="99" value={effectivePotential} className="w-full mt-2.5" style={{ accentColor: C.goldSoft }}
+            onChange={(e) => set("potential", Number(e.target.value))} />
+          <span className="text-xs" style={{ color: C.chalk, fontFamily: F_MONO }}>{effectivePotential}</span>
+        </Field>
+        <Field label="Valor de mercado" hint={`Sugerido: ${formatMoney(suggestValue(rating, p.age))}`}>
+          <div className="flex gap-1.5">
+            <NumInput value={p.value} onChange={(e) => set("value", Math.max(0, Number(e.target.value) || 0))} />
+            <Btn size="sm" onClick={() => set("value", suggestValue(rating, p.age))}>Sugerir</Btn>
+          </div>
+        </Field>
+      </div>
+
+      <div className="mb-3">
+        <span className="block text-[11px] tracking-wide uppercase mb-1.5" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Contrato</span>
+        <div className="grid sm:grid-cols-2 gap-x-4">
+          <Field label="Salario anual" hint={`Sugerido: ${formatMoney(suggestSalary(rating, p.age))}/año`}>
+            <div className="flex gap-1.5">
+              <NumInput value={p.salary} onChange={(e) => set("salary", Math.max(0, Number(e.target.value) || 0))} />
+              <Btn size="sm" onClick={() => set("salary", suggestSalary(rating, p.age))}>Sugerir</Btn>
+            </div>
+          </Field>
+          <Field label="Duración de contrato (años)">
+            <NumInput min="0" max="10" value={p.contractYears} onChange={(e) => set("contractYears", clamp(Number(e.target.value) || 0, 0, 10))} />
+          </Field>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <span className="block text-[11px] tracking-wide uppercase mb-1.5" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Estadísticas</span>
+        <CategoryEditor group={p.group} position={p.position} categories={p.categories} onChange={setCategoryValue} />
+      </div>
+
+      <Field label="Estilo de juego">
+        <Select value={p.playstyle} onChange={(e) => set("playstyle", e.target.value)}>
+          {PLAYSTYLES[p.group].map((s) => <option key={s}>{s}</option>)}
+        </Select>
+      </Field>
+
+      <Field label={`Habilidades (${p.abilities.length})`}>
+        <div className="flex flex-wrap">
+          {ALL_ABILITIES.map((a) => <ChipToggle key={a} label={a} active={p.abilities.includes(a)} onClick={() => toggleAbility(a)} />)}
+        </div>
+      </Field>
+
+      <Field label={`Estilos COM (${p.aiStyles.length})`}>
+        <div className="flex flex-wrap">
+          {ALL_AI_STYLES.map((a) => <ChipToggle key={a} label={a} active={p.aiStyles.includes(a)} onClick={() => toggleAI(a)} />)}
+        </div>
+      </Field>
+
+      <div className="grid sm:grid-cols-2 gap-x-4">
+        {Object.entries(CHAR_OPTIONS).map(([k, opts]) => (
+          <Field key={k} label={k}>
+            <Select value={p.characteristics[k]} onChange={(e) => setChar(k, e.target.value)}>
+              {opts.map((o) => <option key={o}>{o}</option>)}
+            </Select>
+          </Field>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 mt-4 pt-3 -mx-5 px-5 sticky bottom-0 z-10" style={{ borderTop: `1px solid ${C.panelLight}`, backgroundColor: C.panel, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+        <span className="flex items-center gap-1.5 mr-auto shrink-0">
+          <RatingBadge value={rating} />
+          <span className="text-[11px]" style={{ color: C.chalkDim, fontFamily: F_MONO }}>{p.position}</span>
+        </span>
+        <Btn variant="outline" onClick={onCancel} className="flex-1 sm:flex-none justify-center">Cancelar</Btn>
+        <Btn variant="gold" disabled={!canSave} onClick={() => onSave({ ...p, potential: effectivePotential })} className="flex-1 sm:flex-none justify-center">Guardar</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------- APP ----------
+function App() {
+  const [leagues, setLeagues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+  const [selLeague, setSelLeague] = useState(null);
+  const [selTeam, setSelTeam] = useState(null);
+  const [playerForm, setPlayerForm] = useState(null); // { player, isNew }
+  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+  const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState("");
+  const [bulkCount, setBulkCount] = useState(22);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      const data = await loadDB();
+      setLeagues(data || []);
+      setLoading(false);
+    })();
+  }, []);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
+  const persist = (next) => { setLeagues(next); saveDB(next); };
+
+  const league = leagues.find((l) => l.id === selLeague) || null;
+  const team = league?.teams.find((t) => t.id === selTeam) || null;
+  const totalSalary = team ? team.players.reduce((s, p) => s + (p.salary || 0), 0) : 0;
+
+  // ----- League CRUD -----
+  const addLeague = () => {
+    const l = blankLeague(`Liga ${leagues.length + 1}`);
+    persist([...leagues, l]);
+    setExpanded((e) => ({ ...e, [l.id]: true }));
+    setSelLeague(l.id); setSelTeam(null);
+    showToast("Liga creada");
+  };
+  const renameLeague = (id, name) => persist(leagues.map((l) => (l.id === id ? { ...l, name } : l)));
+  const deleteLeague = (id) => {
+    setConfirm({
+      message: "Esto eliminará la liga y todos sus equipos y jugadores. ¿Continuar?",
+      onConfirm: () => {
+        persist(leagues.filter((l) => l.id !== id));
+        if (selLeague === id) { setSelLeague(null); setSelTeam(null); }
+        setConfirm(null); showToast("Liga eliminada");
+      },
+    });
+  };
+
+  // ----- Team CRUD -----
+  const addTeam = (leagueId) => {
+    const t = blankTeam(`Equipo ${(leagues.find((l) => l.id === leagueId)?.teams.length || 0) + 1}`);
+    persist(leagues.map((l) => (l.id === leagueId ? { ...l, teams: [...l.teams, t] } : l)));
+    setSelLeague(leagueId); setSelTeam(t.id);
+    showToast("Equipo creado");
+  };
+  const updateTeam = (leagueId, teamId, patch) => {
+    persist(leagues.map((l) => l.id !== leagueId ? l : {
+      ...l, teams: l.teams.map((t) => (t.id === teamId ? { ...t, ...patch } : t)),
+    }));
+  };
+  const deleteTeam = (leagueId, teamId) => {
+    setConfirm({
+      message: "Esto eliminará el equipo y todos sus jugadores. ¿Continuar?",
+      onConfirm: () => {
+        persist(leagues.map((l) => l.id !== leagueId ? l : { ...l, teams: l.teams.filter((t) => t.id !== teamId) }));
+        if (selTeam === teamId) setSelTeam(null);
+        setConfirm(null); showToast("Equipo eliminado");
+      },
+    });
+  };
+
+  // ----- Player CRUD -----
+  const openNewPlayer = () => setPlayerForm({ player: blankPlayer(), isNew: true });
+  const openEditPlayer = (p) => setPlayerForm({ player: p, isNew: false });
+  const savePlayer = (p) => {
+    if (!league || !team) return;
+    const exists = team.players.some((x) => x.id === p.id);
+    const nextPlayers = exists ? team.players.map((x) => (x.id === p.id ? p : x)) : [...team.players, p];
+    updateTeam(league.id, team.id, { players: nextPlayers });
+    setPlayerForm(null);
+    showToast(exists ? "Jugador actualizado" : "Jugador añadido");
+  };
+  const deletePlayer = (playerId) => {
+    setConfirm({
+      message: "¿Eliminar a este jugador de la plantilla?",
+      onConfirm: () => {
+        updateTeam(league.id, team.id, { players: team.players.filter((p) => p.id !== playerId) });
+        setConfirm(null); showToast("Jugador eliminado");
+      },
+    });
+  };
+  const duplicatePlayer = (p) => {
+    updateTeam(league.id, team.id, { players: [...team.players, { ...p, id: uid(), name: `${p.name} (copia)` }] });
+    showToast("Jugador duplicado");
+  };
+  const addRandomPlayer = () => {
+    if (!league || !team) return;
+    updateTeam(league.id, team.id, { players: [...team.players, randomPlayer()] });
+    showToast("Jugador aleatorio añadido");
+  };
+  const fillSquad = (n) => {
+    if (!league || !team || !n || n < 1) return;
+    updateTeam(league.id, team.id, { players: [...team.players, ...randomSquad(n)] });
+    showToast(`${n} jugadores añadidos a la plantilla`);
+  };
+
+  // ----- Import / Export -----
+  const exportAll = () => {
+    const blob = new Blob([JSON.stringify({ leagues }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "database-futbol.json"; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const triggerImport = () => fileInputRef.current?.click();
+  const handleImportFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const incoming = Array.isArray(parsed) ? parsed : parsed.leagues;
+        if (!Array.isArray(incoming)) throw new Error("Formato inválido");
+        setConfirm({
+          message: `Se encontraron ${incoming.length} liga(s) en el archivo. Esto reemplazará tu base de datos actual. ¿Continuar?`,
+          onConfirm: () => { persist(incoming); setSelLeague(null); setSelTeam(null); setConfirm(null); showToast("Base de datos importada"); },
+        });
+      } catch (err) { showToast("No se pudo leer el archivo JSON"); }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  };
+
+  const filteredPlayers = useMemo(() => {
+    if (!team) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return team.players;
+    return team.players.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.position.toLowerCase().includes(q) ||
+      (p.nationalities || []).some((n) => n.toLowerCase().includes(q))
+    );
+  }, [team, search]);
+
+  const totalPlayers = leagues.reduce((s, l) => s + l.teams.reduce((s2, t) => s2 + t.players.length, 0), 0);
+  const totalTeams = leagues.reduce((s, l) => s + l.teams.length, 0);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: C.bg, color: C.chalkDim, fontFamily: F_BODY }}>Cargando base de datos...</div>;
+  }
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: C.bg, fontFamily: F_BODY }}>
+      <style>{`@import url('${FONTS_URL}');`}</style>
+
+      <div className="max-w-[1920px] mx-auto 2xl:border-x" style={{ borderColor: C.panelLight }}>
+
+      {/* HEADER */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 xl:px-10 py-4" style={{ borderBottom: `1px solid ${C.panelLight}` }}>
+        <div>
+          <h1 className="text-2xl leading-none" style={{ fontFamily: F_DISPLAY, color: C.chalk, letterSpacing: "0.03em" }}>Editor de Base de Datos</h1>
+          <span className="text-xs" style={{ color: C.chalkDim, fontFamily: F_MONO }}>{leagues.length} liga(s) · {totalTeams} equipo(s) · {totalPlayers} jugador(es)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Btn size="sm" icon={IUpload} onClick={triggerImport}>Importar</Btn>
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleImportFile} />
+          <Btn size="sm" icon={IDownload} onClick={exportAll} disabled={leagues.length === 0}>Exportar JSON</Btn>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row">
+        {/* SIDEBAR */}
+        <div className="lg:w-72 xl:w-80 2xl:w-96 shrink-0 px-4 sm:px-6 xl:px-8 py-4 lg:max-h-screen lg:overflow-y-auto lg:sticky lg:top-0" style={{ borderRight: `1px solid ${C.panelLight}` }}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs tracking-[0.15em] uppercase" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Ligas</h3>
+            <Btn size="sm" icon={IPlus} onClick={addLeague}>Nueva liga</Btn>
+          </div>
+
+          {leagues.length === 0 && (
+            <div className="text-sm rounded-sm p-3" style={{ backgroundColor: C.panel, color: C.chalkDim }}>
+              No hay ligas todavía. Creá la primera para empezar a construir tu base de datos.
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
+            {leagues.map((l) => (
+              <div key={l.id}>
+                <div className="flex items-center gap-1 group rounded-sm px-2 py-1.5"
+                  style={{ backgroundColor: selLeague === l.id && !selTeam ? C.panelLight : "transparent" }}>
+                  <button onClick={() => setExpanded((e) => ({ ...e, [l.id]: !e[l.id] }))} style={{ color: C.chalkDim }}>
+                    {expanded[l.id] ? <IChevronDown size={14} /> : <IChevronRight size={14} />}
+                  </button>
+                  <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left" onClick={() => { setSelLeague(l.id); setSelTeam(null); }}>
+                    <ITrophy size={13} color={C.gold} />
+                    <span className="text-sm truncate" style={{ color: C.chalk }}>{l.name}</span>
+                    <span className="text-[10px] shrink-0" style={{ color: C.chalkDim, fontFamily: F_MONO }}>({l.teams.length})</span>
+                  </button>
+                  <button onClick={() => deleteLeague(l.id)} className="opacity-0 group-hover:opacity-100 p-1" style={{ color: C.chalkDim }}><ITrash size={13} /></button>
+                </div>
+
+                {expanded[l.id] && (
+                  <div className="ml-5 flex flex-col gap-0.5 mt-0.5 mb-1">
+                    {l.teams.map((t) => (
+                      <button key={t.id} onClick={() => { setSelLeague(l.id); setSelTeam(t.id); }}
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-sm text-left"
+                        style={{ backgroundColor: selTeam === t.id ? C.panelHover : "transparent" }}>
+                        <IShirt size={12} color={C.chalkDim} />
+                        <span className="text-xs truncate" style={{ color: C.chalk }}>{t.name}</span>
+                        <span className="text-[10px] shrink-0" style={{ color: C.chalkDim, fontFamily: F_MONO }}>({t.players.length})</span>
+                      </button>
+                    ))}
+                    <button onClick={() => addTeam(l.id)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs" style={{ color: C.gold }}>
+                      <IPlus size={12} /> Añadir equipo
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* MAIN */}
+        <div className="flex-1 px-4 sm:px-6 xl:px-10 py-4 min-w-0">
+          {/* Breadcrumb */}
+          <div className="text-xs mb-4 flex items-center gap-1.5 flex-wrap" style={{ color: C.chalkDim, fontFamily: F_MONO }}>
+            <span>Ligas</span>
+            {league && <><IChevronRight size={11} /><button onClick={() => setSelTeam(null)} style={{ color: selTeam ? C.chalkDim : C.gold }}>{league.name}</button></>}
+            {team && <><IChevronRight size={11} /><span style={{ color: C.gold }}>{team.name}</span></>}
+          </div>
+
+          {!league && (
+            <div className="text-center py-16">
+              <ITrophy size={32} color={C.chalkDim} className="mx-auto mb-3" />
+              <p className="text-sm" style={{ color: C.chalkDim }}>Seleccioná o creá una liga en el panel izquierdo para empezar.</p>
+            </div>
+          )}
+
+          {league && !team && (
+            <div>
+              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <TextInput value={league.name} onChange={(e) => renameLeague(league.id, e.target.value)} className="max-w-xs" />
+                <Btn icon={IPlus} onClick={() => addTeam(league.id)}>Nuevo equipo</Btn>
+              </div>
+              {league.teams.length === 0 ? (
+                <div className="text-sm rounded-sm p-4" style={{ backgroundColor: C.panel, color: C.chalkDim }}>
+                  Esta liga todavía no tiene equipos. Agregá uno para empezar a cargar jugadores.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+                  {league.teams.map((t) => {
+                    const avg = t.players.length ? Math.round(t.players.reduce((s, p) => s + computeRating(p), 0) / t.players.length) : null;
+                    return (
+                      <button key={t.id} onClick={() => setSelTeam(t.id)} className="text-left rounded-sm p-3.5"
+                        style={{ backgroundColor: C.panel, border: `1px solid ${C.panelLight}` }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium truncate" style={{ color: C.chalk }}>{t.name}</span>
+                          {avg !== null && <RatingBadge value={avg} />}
+                        </div>
+                        <div className="flex items-center justify-between text-xs mb-1" style={{ color: C.chalkDim, fontFamily: F_MONO }}>
+                          <span className="flex items-center gap-1"><IUsers size={12} /> {t.players.length} jugadores</span>
+                          <span className="flex items-center gap-1" title="Presupuesto de fichajes"><IWallet size={12} /> {formatMoney(t.transferBudget)}</span>
+                        </div>
+                        <div className="flex items-center justify-end text-xs" style={{ color: C.chalkDim, fontFamily: F_MONO }}>
+                          <span className="flex items-center gap-1" title="Presupuesto de salarios"><IWallet size={12} color={C.goldSoft} /> {formatMoney(t.salaryBudget)}/año</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {team && (
+            <div>
+              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <TextInput value={team.name} onChange={(e) => updateTeam(league.id, team.id, { name: e.target.value })} className="max-w-[220px]" />
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-sm" style={{ backgroundColor: C.panelLight }} title="Presupuesto de fichajes">
+                    <IWallet size={14} color={C.gold} />
+                    <span className="text-[10px] uppercase" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Fichajes</span>
+                    <input type="number" value={team.transferBudget} onChange={(e) => updateTeam(league.id, team.id, { transferBudget: Number(e.target.value) || 0 })}
+                      className="bg-transparent w-24 text-sm" style={{ color: C.goldSoft, fontFamily: F_MONO }} />
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-sm" style={{ backgroundColor: C.panelLight }} title="Presupuesto de salarios (anual)">
+                    <IWallet size={14} color={C.goldSoft} />
+                    <span className="text-[10px] uppercase" style={{ color: C.chalkDim, fontFamily: F_MONO }}>Salarios/año</span>
+                    <input type="number" value={team.salaryBudget} onChange={(e) => updateTeam(league.id, team.id, { salaryBudget: Number(e.target.value) || 0 })}
+                      className="bg-transparent w-24 text-sm" style={{ color: C.goldSoft, fontFamily: F_MONO }} />
+                  </div>
+                  <Btn variant="danger" size="sm" icon={ITrash} onClick={() => deleteTeam(league.id, team.id)}>Eliminar equipo</Btn>
+                </div>
+              </div>
+              <p className="text-[11px] mb-3 -mt-2" style={{ color: totalSalary > team.salaryBudget ? C.red : C.chalkDim, fontFamily: F_MONO }}>
+                Salarios comprometidos: {formatMoney(totalSalary)} / {formatMoney(team.salaryBudget)} por año
+              </p>
+
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <div className="relative max-w-xs w-full">
+                  <ISearch size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" color={C.chalkDim} />
+                  <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar jugador..." className="pl-8" />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Btn size="sm" icon={IShuffle} onClick={addRandomPlayer}>Aleatorio</Btn>
+                  <NumInput value={bulkCount} min="1" max="200" onChange={(e) => setBulkCount(Math.max(1, Number(e.target.value) || 1))} className="w-16" />
+                  <Btn size="sm" onClick={() => fillSquad(bulkCount)}>Generar plantilla</Btn>
+                  <Btn variant="gold" size="sm" icon={IPlus} onClick={openNewPlayer}>Nuevo jugador</Btn>
+                </div>
+              </div>
+              <p className="text-[11px] mb-3" style={{ color: C.chalkDim, fontFamily: F_BODY }}>Sin límite de jugadores por plantilla — sumá tantos como necesites, cada equipo puede tener una cantidad distinta.</p>
+
+              {team.players.length === 0 ? (
+                <div className="text-sm rounded-sm p-4" style={{ backgroundColor: C.panel, color: C.chalkDim }}>
+                  Plantilla vacía. Agregá jugadores uno por uno o generá una plantilla completa.
+                </div>
+              ) : (
+                <div className="rounded-md overflow-x-auto" style={{ border: `1px solid ${C.panelLight}` }}>
+                  <table className="w-full text-sm min-w-[420px]">
+                    <thead>
+                      <tr style={{ backgroundColor: C.panelLight, color: C.chalkDim }}>
+                        <th className="text-left px-3 py-2.5 text-xs uppercase tracking-wide">Pos</th>
+                        <th className="text-left px-3 py-2.5 text-xs uppercase tracking-wide">Nombre</th>
+                        <th className="text-left px-3 py-2.5 text-xs uppercase tracking-wide hidden sm:table-cell">Nacionalidad</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide">Edad</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide">Val</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide hidden sm:table-cell">Pot</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide hidden md:table-cell">Precio</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide hidden lg:table-cell">Salario</th>
+                        <th className="px-2 py-2.5 text-xs uppercase tracking-wide"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPlayers.map((p, i) => (
+                        <tr key={p.id} style={{ backgroundColor: i % 2 ? C.panel : "transparent", color: C.chalk }}>
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-sm w-fit" style={{ backgroundColor: C.panelLight, color: C.chalkDim, fontFamily: F_MONO }}>{p.position}</span>
+                              {!!(p.secondaryPositions && p.secondaryPositions.length) && (
+                                <span className="text-[9px]" style={{ color: C.chalkDim, fontFamily: F_MONO }}>
+                                  {p.secondaryPositions.map((c) => `${c} ${ratingAtPosition(p, c)}`).join(" · ")}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5"><button onClick={() => openEditPlayer(p)} className="text-left hover:underline truncate block w-full py-1">{p.name || <em style={{ color: C.chalkDim }}>Sin nombre</em>}</button></td>
+                          <td className="px-3 py-2.5 hidden sm:table-cell" style={{ color: C.chalkDim }}>{(p.nationalities && p.nationalities.length) ? p.nationalities.join(" / ") : "—"}</td>
+                          <td className="px-2 py-2.5 text-center" style={{ fontFamily: F_MONO }}>{p.age}</td>
+                          <td className="px-2 py-2.5 text-center"><RatingBadge value={computeRating(p)} /></td>
+                          <td className="px-2 py-2.5 text-center hidden sm:table-cell" style={{ fontFamily: F_MONO, color: C.chalkDim }}>{p.potential}</td>
+                          <td className="px-2 py-2.5 text-center hidden md:table-cell" style={{ fontFamily: F_MONO, color: C.goldSoft }}>{formatMoney(p.value)}</td>
+                          <td className="px-2 py-2.5 text-center hidden lg:table-cell" style={{ fontFamily: F_MONO, color: C.chalkDim }}>{formatMoney(p.salary)}/año</td>
+                          <td className="px-2 py-2.5">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button onClick={() => openEditPlayer(p)} className="p-2" style={{ color: C.chalkDim }}><IPencil size={15} /></button>
+                              <button onClick={() => duplicatePlayer(p)} className="p-2" style={{ color: C.chalkDim }}><ICopy size={15} /></button>
+                              <button onClick={() => deletePlayer(p.id)} className="p-2" style={{ color: C.red }}><ITrash size={15} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {playerForm && (
+        <Modal title={playerForm.isNew ? "Nuevo jugador" : "Editar jugador"} onClose={() => setPlayerForm(null)} wide>
+          <PlayerForm initial={playerForm.player} onSave={savePlayer} onCancel={() => setPlayerForm(null)} />
+        </Modal>
+      )}
+
+      <ConfirmDialog open={!!confirm} message={confirm?.message} onConfirm={confirm?.onConfirm} onCancel={() => setConfirm(null)} />
+
+      {toast && (
+        <div className="fixed left-1/2 -translate-x-1/2 px-4 py-2 rounded-sm text-sm z-50"
+          style={{ backgroundColor: C.gold, color: C.ink, fontFamily: F_BODY, fontWeight: 600, bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}>
+          {toast}
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>
+  // Registro del service worker (solo funciona si la app se sirve por http/https, no abriendo el archivo directamente)
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
